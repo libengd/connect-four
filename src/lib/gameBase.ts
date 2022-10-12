@@ -85,11 +85,13 @@ export abstract class GameBase<P extends Player = Player> {
   currentPlayerId: number
   isMoveAllowed: boolean = false
   isGameWon: boolean = false
+  isCylinder: boolean
 
-  constructor(players: Array<P>, board: BoardBase) {
+  constructor(players: Array<P>, board: BoardBase, isCylinder: boolean) {
     this.board = board
     this.players = players
     this.currentPlayerId = 0
+    this.isCylinder = isCylinder
     this.reset()
   }
   reset() {
@@ -103,7 +105,7 @@ export abstract class GameBase<P extends Player = Player> {
     this.isMoveAllowed = true
     while (!this.isGameWon) {
       await this.move()
-      const winner = this.board.getWinner()
+      const winner = this.board.getWinner(this.isCylinder)
       if (winner !== BoardPiece.EMPTY) {
         console.log('[GameBase] Game over: winner is player ', winner)
         this.isGameWon = true

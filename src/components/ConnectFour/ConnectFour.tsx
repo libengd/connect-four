@@ -1,6 +1,6 @@
 import { FunctionComponent, useEffect, useRef, useState } from "react";
-import { Box, Button, TextInput, Text, Tip } from "grommet";
-import { StatusWarning, StatusGood, StatusInfo, StatusCritical } from "grommet-icons";
+import { Box, Button, TextInput, Text, Tip, RangeInput, CheckBox } from "grommet";
+import { StatusWarning, StatusGood, StatusInfo, StatusCritical, CircleQuestion } from "grommet-icons";
 import { Board } from "../../lib/connectFour/board";
 import { GameHopr, GAME_MODE } from "../../lib/gameHopr";
 import { VerifiedStatus } from "../../hooks/useApp"
@@ -42,9 +42,13 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
   const statusBoxRef = useRef<any>()
   const [winner, setWinner] = useState<number | null>(null)
 
+  const [rowsValue, setRowsValue] = useState<number>(6)
+  const [colsValue, setColsValue] = useState<number>(7)
+  const [isCylinder, setIsCylinder] = useState<boolean>(false)
+
   const resetHistory = () => {
     updateHistory(draft => {
-      draft = []
+      return []
     })
   }
   const pushHistory = (entry: any) => {
@@ -66,8 +70,17 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
       case 'connect': {
         setPeerId(action.from)
         pushHistory(Action.CONNECT_IN)
+        setColsValue(Math.min(10, Math.max(4, Math.floor(action.settings?.cols))))
+        setRowsValue(Math.min(10, Math.max(4, Math.floor(action.settings?.rows))))
+        setIsCylinder(!!action.settings?.isCylinder)
         break
       }
+      case 'connect_and_proof':
+        setPeerId(action.from)
+        setProof(action.proof)
+        pushHistory(Action.CONNECT_IN)
+        pushHistory(Action.PROOF_IN)
+        break
       case 'proof': {
         setProof(action.proof)
         pushHistory(Action.PROOF_IN)
@@ -86,15 +99,15 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
   useEffect(() => {
     const lastEntry = history[history.length - 1]
     if (lastEntry === Action.CONNECT_IN) {
-      if (hasEntry(history, Action.CONNECT)) {
-        const myProof = Math.round(Math.random() * 1e12);
-        setMyProof(myProof)
-        sendMessage(peerId, JSON.stringify({ action: "proof", proof: myProof }))
-        pushHistory(Action.PROOF)
-      } else {
-        sendMessage(peerId, JSON.stringify({ action: "connect", from: myPeerId }))
-        pushHistory(Action.CONNECT)
-      }
+      const myProof = Math.round(Math.random() * 1e12);
+      setMyProof(myProof)
+      sendMessage(peerId, JSON.stringify({ action: "connect_and_proof", from: myPeerId, proof: myProof }))
+      pushHistory(Action.CONNECT)
+      pushHistory(Action.PROOF)
+      // if (hasEntry(history, Action.CONNECT)) {
+      // } else {
+      //   sendMessage(peerId, JSON.stringify({ action: "connect", from: myPeerId }))
+      // }
     }
     if (lastEntry === Action.PROOF_IN) {
       if (hasEntry(history, Action.PROOF)) {
@@ -130,6 +143,12 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
   }, [myPeerId, socketRef.current]);
 
   useEffect(() => {
+    board?.setDims(rowsValue, colsValue)
+    board?.initConstants()
+    board?.render()
+  }, [board, rowsValue, colsValue])
+
+  useEffect(() => {
     switch (status) {
       case GAME_STATUS.PLAY: {
         if (game) return;
@@ -141,13 +160,13 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
 
 
         if (seedrandom(seed)() > 0.5) {
-          if (peers[0] == myPeerId) {
+          if (peers[0] === myPeerId) {
             gameMode = GAME_MODE.FIRST
           } else {
             gameMode = GAME_MODE.SECOND
           }
         } else {
-          if (peers[0] == myPeerId) {
+          if (peers[0] === myPeerId) {
             gameMode = GAME_MODE.SECOND
           } else {
             gameMode = GAME_MODE.FIRST
@@ -167,7 +186,7 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
 
         const gameInstance = new GameHopr(players, board, statusBoxRef, setWinner, {
           gameMode,
-        })
+        }, isCylinder)
 
         gameInstance.start()
 
@@ -197,12 +216,12 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
             }
           }
         }
-      
+
         socketRef.current.addEventListener(
           "message",
           handleReceivedMessage(addReceivedMessage)
         );
-        
+
         setGame(gameInstance)
 
         return () => {
@@ -257,23 +276,48 @@ const ConnectFour: FunctionComponent<{ socketRef: any, myPeerId: string, handleR
         {winStatus}
       </Text> : ''}
       <Box pad="small">
+        <Text>Rows: {rowsValue}</Text>
+        <RangeInput disabled={status !== GAME_STATUS.IDLE} onChange={event => setRowsValue(+event.target.value)} value={rowsValue} min="4" max="10" step={1} name="rows" />
+        <Text>Columns: {colsValue}</Text>
+        <RangeInput disabled={status !== GAME_STATUS.IDLE} onChange={event => setColsValue(+event.target.value)} value={colsValue} min="4" max="10" step={1} name="colums" />
+        <CheckBox
+          disabled={status !== GAME_STATUS.IDLE}
+          checked={isCylinder}
+          label={
+            <Text>Enable Cylinder Rule
+              &nbsp;
+              <Tip content="Connections can be made across the far left and far right columns">
+                <CircleQuestion />
+              </Tip>
+            </Text>
+          }
+          onChange={(event) => setIsCylinder(event.target.checked)}
+        />
+      </Box>
+      <Box pad="small">
         <canvas ref={ref}></canvas>
       </Box>
-      <Box>
+      {status !== GAME_STATUS.IDLE && <Box>
         <Text ref={statusBoxRef} textAlign="end"></Text>
-      </Box>
+      </Box>}
       <Box pad="small">
         <TextInput onChange={(e) => setPeerId(e.target.value)} value={peerId} placeholder="Opponent" />
       </Box>
       {winner !== null && status === 2 ? <Button primary label="new game" onClick={() => {
-        resetHistory()
         setStatus(GAME_STATUS.IDLE)
-      }}/> : ''}
-      {status == 0 ?<Button primary label="connect" onClick={() => {
+        game?.reset()
+        setGame(undefined)
+        setWinner(null)
+        setProof(0)
+        setMyProof(0)
+        setSeed("")
+        resetHistory()
+      }} /> : ''}
+      {status === 0 ? <Button primary label="connect" onClick={() => {
         pushHistory(Action.CONNECT)
         setStatus(GAME_STATUS.CONNECTING)
-        sendMessage(peerId, JSON.stringify({ action: "connect", from: myPeerId }))
-      }}/> : ''}
+        sendMessage(peerId, JSON.stringify({ action: "connect", from: myPeerId, settings: { rows: rowsValue, cols: colsValue, isCylinder } }))
+      }} /> : ''}
     </Box>
   );
 };

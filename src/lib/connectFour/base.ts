@@ -8,8 +8,8 @@ export enum BoardPiece {
   DRAW,
 }
 export class BoardBase {
-  static readonly ROWS: number = 6
-  static readonly COLUMNS: number = 7
+  static ROWS: number = 6
+  static COLUMNS: number = 7
   static readonly PLAYER_1_COLOR: string = '#ffffa0'
   static readonly PLAYER_2_COLOR: string = '#0000b4'
   static readonly PIECE_STROKE_STYLE: string = 'black'
@@ -34,6 +34,13 @@ export class BoardBase {
     this.reset()
   }
 
+  setDims(rows: number, cols: number) {
+    BoardBase.ROWS = rows
+    BoardBase.COLUMNS = cols
+    this.initConstants()
+    this.reset()
+  }
+
   reset() {
     this.map = []
     for (let i = 0; i < BoardBase.ROWS; i++) {
@@ -48,7 +55,7 @@ export class BoardBase {
   initConstants() {
     BoardBase.CANVAS_HEIGHT = BoardBase.SCALE * 480
     BoardBase.CANVAS_WIDTH = BoardBase.SCALE * 640
-    BoardBase.PIECE_RADIUS = BoardBase.SCALE * 25
+    BoardBase.PIECE_RADIUS = BoardBase.SCALE * 25 * (6 / Math.max(BoardBase.ROWS, BoardBase.COLUMNS))
     BoardBase.MASK_X_BEGIN =
       Math.max(
         0,
@@ -89,7 +96,7 @@ export class BoardBase {
     console.log(this.map.map((row) => row.join(' ')).join('\n'))
   }
 
-  getWinner(): BoardPiece {
+  getWinner(isCylinder: boolean): BoardPiece {
     if (this.winnerBoardPiece !== BoardPiece.EMPTY) {
       return this.winnerBoardPiece
     }
@@ -112,6 +119,10 @@ export class BoardBase {
     ): boolean => {
       if (count >= 4) {
         return true
+      }
+      if (isCylinder) {
+        if (j === BoardBase.COLUMNS) j = 0
+        else if (j < 0) j = BoardBase.COLUMNS
       }
       if (
         i < 0 ||

@@ -36,9 +36,10 @@ export class GameHopr extends GameBase {
     board: BoardBase,
     statusBoxRef: any,
     setWinner: any,
-    { gameMode }: { gameMode: GAME_MODE }
+    { gameMode }: { gameMode: GAME_MODE },
+    isCylinder: boolean
   ) {
-    super(players, board)
+    super(players, board, isCylinder)
     this.gameMode = gameMode
     this.statusBoxRef = statusBoxRef
     this.setWinner = setWinner
